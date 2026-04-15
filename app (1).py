@@ -13,10 +13,48 @@ import difflib
 st.set_page_config(page_title="Smart PDF Comparator", layout="wide")
 
 # =============================
+# 🔐 LOGIN SYSTEM
+# =============================
+def check_login():
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+
+    if not st.session_state.logged_in:
+        st.markdown("""
+        <div style="display:flex; justify-content:center; margin-top:80px;">
+        <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+                    padding: 2.5rem; border-radius: 20px; width:380px; text-align:center;">
+            <h1 style="color:#e94560; margin-bottom:0.2rem;">🏭 Smart PDF</h1>
+            <h2 style="color:#e94560; margin-top:0;">Comparator</h2>
+            <p style="color:#a8b2d8; margin-bottom:2rem;">Please login to continue</p>
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            username = st.text_input("👤 Username")
+            password = st.text_input("🔑 Password", type="password")
+
+            if st.button("🔓 Login", use_container_width=True):
+                if username == "dreamy" and password == "YDreamy":
+                    st.session_state.logged_in = True
+                    st.rerun()
+                else:
+                    st.error("❌ Incorrect username or password")
+        st.stop()
+
+check_login()
+
+# =============================
 # 🧠 DEBUG MODE
 # =============================
 st.sidebar.title("⚙️ Settings")
 debug_mode = st.sidebar.checkbox("🐞 Debug mode", value=False)
+
+if st.sidebar.button("🚪 Logout"):
+    st.session_state.logged_in = False
+    st.rerun()
 
 # =============================
 # 📄 VIEW PDF
@@ -310,7 +348,6 @@ def display_comparison_results(result, section):
     modified = result["modified"]
     total    = len(added) + len(deleted) + len(modified)
 
-    # ── 1. KPI SUMMARY ───────────────────────────────────────
     st.markdown("---")
     st.subheader("📊 KPI Summary")
 
@@ -326,7 +363,6 @@ def display_comparison_results(result, section):
 
     st.markdown("---")
 
-    # ── 2. ADDED ─────────────────────────────────────────────
     with st.expander(f"➕ Added equipment — {len(added)} item(s)",
                      expanded=len(added) > 0):
         if added:
@@ -336,7 +372,6 @@ def display_comparison_results(result, section):
         else:
             st.success("No equipment added.")
 
-    # ── 3. DELETED ───────────────────────────────────────────
     with st.expander(f"➖ Deleted equipment — {len(deleted)} item(s)",
                      expanded=len(deleted) > 0):
         if deleted:
@@ -346,14 +381,12 @@ def display_comparison_results(result, section):
         else:
             st.success("No equipment deleted.")
 
-    # ── 4. MODIFIED TABLE ────────────────────────────────────
     with st.expander(f"✏️ Modified parameters — {len(modified)} equipment",
                      expanded=True):
         if not modified:
             st.success("No parameter changes detected.")
             return
 
-        # Aplatir → une ligne par (Equipment × Parameter)
         rows = []
         for equip, changes in modified.items():
             for param, vals in changes.items():
@@ -369,7 +402,6 @@ def display_comparison_results(result, section):
                     .reset_index(drop=True))
         df_mod.index += 1
 
-        # Sauvegarder df_mod dans session_state pour que le filtre y accède
         st.session_state["df_mod"] = df_mod
         st.session_state["section"] = section
 
@@ -381,7 +413,6 @@ def display_comparison_results(result, section):
                 "background-color:#d4edda; color:#155724",
             ]
 
-        # Filtre par paramètre — AVANT le tableau principal
         st.markdown("#### 🔍 Filter by parameter")
         all_params = sorted(df_mod["Parameter"].unique())
         chosen = st.multiselect(
@@ -391,7 +422,6 @@ def display_comparison_results(result, section):
             key="param_filter"
         )
 
-        # Choisir quel df afficher selon filtre
         df_display = df_mod.copy()
         if chosen:
             df_display = df_mod[df_mod["Parameter"].isin(chosen)].reset_index(drop=True)
@@ -406,7 +436,6 @@ def display_comparison_results(result, section):
 
         st.caption(f"Showing {len(df_display)} of {len(df_mod)} changes")
 
-        # Export CSV (toujours le df complet)
         csv = df_mod.to_csv(index=False).encode("utf-8")
         st.download_button(
             label="⬇️ Download all changes as CSV",
@@ -437,7 +466,6 @@ old_pdf = st.sidebar.file_uploader("📁 Old List", type=["pdf"])
 # =============================
 if menu == "🏠 Accueil":
 
-    # ── Header ───────────────────────────────────────────────
     st.markdown("""
     <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
                 padding: 2rem 2.5rem; border-radius: 16px; margin-bottom: 1.5rem;">
@@ -451,7 +479,6 @@ if menu == "🏠 Accueil":
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Récupérer session_state deep_result si disponible ────
     deep_result  = st.session_state.get("deep_result", None)
     deep_section = st.session_state.get("deep_section", "—")
 
@@ -461,7 +488,6 @@ if menu == "🏠 Accueil":
     n_modified = len(deep_result["modified"]) if has_result else None
     n_total    = (n_added + n_deleted + n_modified) if has_result else None
 
-    # ── Status PDFs ──────────────────────────────────────────
     col_s1, col_s2 = st.columns(2)
     with col_s1:
         if new_pdf:
@@ -476,7 +502,6 @@ if menu == "🏠 Accueil":
 
     st.markdown("---")
 
-    # ── KPI CARDS ────────────────────────────────────────────
     st.subheader("📊 Last Deep Comparison Results")
 
     if has_result:
@@ -500,10 +525,8 @@ if menu == "🏠 Accueil":
 
         st.markdown("")
 
-        # ── CHARTS ───────────────────────────────────────────
         import json
 
-        # Préparer les données modified pour les graphes
         modified = deep_result["modified"]
         rows_mod = []
         for equip, changes in modified.items():
@@ -519,7 +542,6 @@ if menu == "🏠 Accueil":
         if not df_dash.empty:
             chart_col1, chart_col2 = st.columns(2)
 
-            # ── Donut — répartition des types de changements ─
             with chart_col1:
                 st.markdown("#### 🍩 Change breakdown")
                 donut_labels = ["Added", "Deleted", "Modified"]
@@ -555,7 +577,6 @@ if menu == "🏠 Accueil":
                 """
                 st.components.v1.html(donut_html, height=300)
 
-            # ── Bar — top 10 paramètres les plus modifiés ────
             with chart_col2:
                 st.markdown("#### 📊 Top modified parameters")
                 param_counts = df_dash["Parameter"].value_counts().head(10)
@@ -592,7 +613,6 @@ if menu == "🏠 Accueil":
                 """
                 st.components.v1.html(bar_html, height=300)
 
-            # ── Table — top 5 équipements les plus impactés ──
             st.markdown("#### 🏆 Top 5 most impacted equipment")
             top5 = (df_dash.groupby("Equipment")
                            .size()
@@ -615,11 +635,9 @@ if menu == "🏠 Accueil":
             )
 
     else:
-        # Pas encore de résultat Deep Comparison
         st.info("💡 No comparison run yet. Go to **🔬 Deep Comparison**, run an analysis, then come back here to see the dashboard.")
 
         st.markdown("")
-        # Placeholder cards grises
         k1, k2, k3, k4 = st.columns(4)
         for col, emoji, label in [
             (k1, "➕", "Added"),
@@ -636,7 +654,6 @@ if menu == "🏠 Accueil":
             </div>
             """, unsafe_allow_html=True)
 
-    # ── Footer ───────────────────────────────────────────────
     st.markdown("---")
     st.markdown("""
     <div style="text-align:center; color:#6c757d; font-size:0.8rem; padding:0.5rem 0;">
@@ -772,7 +789,6 @@ elif menu == "🔬 Deep Comparison":
 
     st.title("🔬 Deep Column Comparison")
 
-    # Initialiser session_state
     if "deep_result" not in st.session_state:
         st.session_state["deep_result"] = None
     if "deep_section" not in st.session_state:
@@ -826,17 +842,13 @@ elif menu == "🔬 Deep Comparison":
                 )
 
                 if st.button("🚀 Run Deep Comparison"):
-                    # Sauvegarder le résultat dans session_state
                     st.session_state["deep_result"] = deep_compare(
                         fnew, fold, key_col, selected_cols
                     )
                     st.session_state["deep_section"] = section
-                    # Réinitialiser le filtre paramètre quand on relance
                     if "param_filter" in st.session_state:
                         del st.session_state["param_filter"]
 
-                # Afficher le résultat s'il existe en session_state
-                # → survit aux re-runs causés par le multiselect filtre
                 if st.session_state["deep_result"] is not None:
                     display_comparison_results(
                         st.session_state["deep_result"],
