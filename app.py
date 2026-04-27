@@ -630,7 +630,8 @@ menu = st.sidebar.radio("", [
     "📄 Viewer",
     "📑 Index",
     "📊 Tables",
-    "🔬 Deep Comparison"
+    "🔬 Deep Comparison",
+    "📁 Exports & Reports"
 ])
 
 new_pdf = st.sidebar.file_uploader("🆕 New List", type=["pdf"])
@@ -1036,17 +1037,6 @@ elif menu == "🔬 Deep Comparison":
                 )
                 st.session_state["saved_selected_cols"] = selected_cols
 
-                # ── Colonnes à inclure dans l'Excel ──────────
-                saved_excel_cols = st.session_state.get("saved_excel_cols", [])
-                default_excel_cols = [c for c in saved_excel_cols if c in available_cols]
-                excel_cols = st.multiselect(
-                    "📊 Colonnes à inclure dans l'Excel exporté",
-                    available_cols,
-                    default=default_excel_cols if default_excel_cols else available_cols,
-                    help="Choisissez exactement les colonnes que vous voulez voir dans le fichier Excel coloré"
-                )
-                st.session_state["saved_excel_cols"] = excel_cols
-
                 if st.button("🚀 Run Deep Comparison"):
                     st.session_state["deep_result"] = deep_compare(
                         fnew, fold, key_col, selected_cols
@@ -1064,41 +1054,100 @@ elif menu == "🔬 Deep Comparison":
                         st.session_state["deep_section"]
                     )
 
-                    # ── EXPORT EXCEL COLORÉ ──────────────────
+                    # ── Redirect to Exports & Reports ────────
                     st.markdown("---")
-                    st.subheader("📥 Export Excel coloré")
-                    st.markdown("""
-                    <div style="background:#eaf4fb; border-radius:10px; padding:0.8rem 1rem; margin-bottom:0.8rem;">
-                        <b>🟢 Vert</b> = Ajouté &nbsp;|&nbsp;
-                        <b style="color:#c0392b">🔴 Rouge</b> = Supprimé &nbsp;|&nbsp;
-                        <b style="color:#d68910">🟡 Jaune cellule</b> = Valeur modifiée &nbsp;|&nbsp;
-                        <b>⬜ Blanc</b> = Identique
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    # Utiliser snapshot sauvegardé
-                    fnew_snap = st.session_state.get("fnew_snapshot", fnew)
-                    fold_snap = st.session_state.get("fold_snapshot", fold)
-                    excel_cols_snap = st.session_state.get("excel_cols_snapshot", excel_cols)
-
-                    # Filtrer sur les colonnes Excel choisies + key_col
-                    excel_cols_final = [key_col] + [c for c in excel_cols_snap if c != key_col]
-                    fnew_excel = fnew_snap[[c for c in excel_cols_final if c in fnew_snap.columns]]
-                    fold_excel = fold_snap[[c for c in excel_cols_final if c in fold_snap.columns]]
-
-                    excel_buffer = export_excel_colored(
-                        fnew_excel,
-                        fold_excel,
-                        key_col,
-                        st.session_state["deep_section"]
-                    )
-                    st.download_button(
-                        label="⬇️ Télécharger Excel coloré",
-                        data=excel_buffer,
-                        file_name=f"comparaison_{st.session_state['deep_section'].replace(' ', '_')}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
+                    st.info("📁 Go to **Exports & Reports** in the menu to download the colored Excel file and reports.")
 
     else:
         st.warning("Upload both PDFs")
+
+# =============================
+# 📁 EXPORTS & REPORTS
+# =============================
+elif menu == "📁 Exports & Reports":
+
+    st.title("📁 Exports & Reports")
+
+    deep_result  = st.session_state.get("deep_result", None)
+    deep_section = st.session_state.get("deep_section", None)
+    fnew_snap    = st.session_state.get("fnew_snapshot", None)
+    fold_snap    = st.session_state.get("fold_snapshot", None)
+    key_col_snap = st.session_state.get("saved_key_col", None)
+
+    if deep_result is None or fnew_snap is None:
+        st.warning("⚠️ No comparison has been run yet. Please go to **🔬 Deep Comparison** first and run a comparison.")
+    else:
+        st.success(f"✅ Comparison available — Section: **{deep_section}**")
+
+        # ── KPI summary ──────────────────────────────────────
+        n_added    = len(deep_result["added"])
+        n_deleted  = len(deep_result["deleted"])
+        n_modified = len(deep_result["modified"])
+        n_total    = n_added + n_deleted + n_modified
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("➕ Added",    n_added)
+        c2.metric("➖ Deleted",  n_deleted)
+        c3.metric("✏️ Modified", n_modified)
+        c4.metric("🔢 Total",    n_total)
+
+        st.markdown("---")
+
+        # ── Excel Export ──────────────────────────────────────
+        st.subheader("📊 Colored Excel Export")
+
+        st.markdown("""
+        <div style="background:#f0f7ff; border-radius:10px; padding:0.8rem 1rem; margin-bottom:1rem; border-left: 4px solid #1a5276;">
+            <b>Color legend:</b><br>
+            🟢 <b>Green</b> = Equipment ADDED &nbsp;|&nbsp;
+            🔴 <b>Red</b> = Equipment DELETED &nbsp;|&nbsp;
+            🟡 <b>Yellow cell</b> = Modified value &nbsp;|&nbsp;
+            ⬜ <b>White</b> = Identical
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Columns selector for Excel
+        all_available = [c for c in fnew_snap.columns if c != key_col_snap]
+        saved_excel_cols = st.session_state.get("saved_excel_cols", [])
+        default_excel = [c for c in saved_excel_cols if c in all_available]
+
+        excel_cols = st.multiselect(
+            "📋 Select columns to include in Excel",
+            all_available,
+            default=default_excel if default_excel else all_available,
+            help="Select exactly the columns you want in the exported Excel file"
+        )
+        st.session_state["saved_excel_cols"] = excel_cols
+
+        if excel_cols:
+            excel_cols_final = [key_col_snap] + [c for c in excel_cols if c != key_col_snap]
+            fnew_excel = fnew_snap[[c for c in excel_cols_final if c in fnew_snap.columns]]
+            fold_excel = fold_snap[[c for c in excel_cols_final if c in fold_snap.columns]]
+
+            excel_buffer = export_excel_colored(
+                fnew_excel,
+                fold_excel,
+                key_col_snap,
+                deep_section
+            )
+
+            import datetime
+            now = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+            filename = f"comparison_{deep_section.replace(' ', '_')}_{now}.xlsx"
+
+            st.download_button(
+                label="⬇️ Download Colored Excel",
+                data=excel_buffer,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            st.caption(f"File: `{filename}` — {len(excel_cols_final)} columns — {len(fnew_excel)} rows")
+        else:
+            st.warning("Please select at least one column to export.")
+
+        st.markdown("---")
+
+        # ── PDF Report (coming soon) ──────────────────────────
+        st.subheader("📝 PDF Report")
+        st.info("🚧 PDF Report generation coming soon in the next update!")
