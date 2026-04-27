@@ -1044,7 +1044,7 @@ elif menu == "🔬 Deep Comparison":
                     st.session_state["deep_section"] = section
                     st.session_state["fnew_snapshot"] = fnew.copy()
                     st.session_state["fold_snapshot"] = fold.copy()
-                    st.session_state["excel_cols_snapshot"] = excel_cols
+                    st.session_state["excel_cols_snapshot"] = []
                     if "param_filter" in st.session_state:
                         del st.session_state["param_filter"]
 
