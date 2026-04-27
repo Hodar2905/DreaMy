@@ -6,6 +6,10 @@ import tempfile
 import base64
 import hashlib
 import difflib
+import io
+from openpyxl import Workbook
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 # =============================
 # 🎯 CONFIG
@@ -61,12 +65,13 @@ if st.sidebar.button("🚪 Logout"):
 # =============================
 def show_pdf(file):
     file.seek(0)
-    base64_pdf = base64.b64encode(file.read()).decode("utf-8")
-    pdf_display = f"""
-    <embed src="data:application/pdf;base64,{base64_pdf}" 
-    width="100%" height="600px" type="application/pdf">
-    """
-    st.markdown(pdf_display, unsafe_allow_html=True)
+    data = file.read()
+    st.download_button(
+        label="📥 Télécharger / Ouvrir le PDF",
+        data=data,
+        file_name=file.name,
+        mime="application/pdf"
+    )
 
 # =============================
 # 📑 INDEX
@@ -337,6 +342,101 @@ def deep_compare(df_new, df_old, key_col, selected_cols):
             modified[k] = changes
 
     return {"added": added, "deleted": deleted, "modified": modified}
+
+
+# =============================
+# 📊 EXPORT EXCEL COLORÉ
+# =============================
+def export_excel_colored(df_new, result, key_col):
+    added    = set(result["added"])
+    deleted  = set(result["deleted"])
+    modified = set(result["modified"].keys())
+
+    fill_green  = PatternFill("solid", fgColor="C6EFCE")
+    fill_red    = PatternFill("solid", fgColor="FFC7CE")
+    fill_yellow = PatternFill("solid", fgColor="FFEB9C")
+    fill_white  = PatternFill("solid", fgColor="FFFFFF")
+    fill_header = PatternFill("solid", fgColor="1F3864")
+
+    font_white = Font(bold=True, color="FFFFFF")
+    font_bold  = Font(bold=True)
+    center     = Alignment(horizontal="center", vertical="center")
+    border     = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"),  bottom=Side(style="thin")
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Comparison Result"
+
+    ws.merge_cells("A1:C1")
+    ws["A1"] = "LEGENDE"
+    ws["A1"].fill      = fill_header
+    ws["A1"].font      = Font(bold=True, color="FFFFFF", size=12)
+    ws["A1"].alignment = center
+    ws["A1"].border    = border
+
+    legends = [
+        (fill_green,  "Vert",   "Equipement AJOUTE"),
+        (fill_red,    "Rouge",  "Equipement SUPPRIME"),
+        (fill_yellow, "Jaune",  "Equipement MODIFIE"),
+        (fill_white,  "Blanc",  "Equipement IDENTIQUE"),
+    ]
+    for i, (fill, color_label, meaning) in enumerate(legends, start=2):
+        ws.cell(row=i, column=1, value=color_label).fill = fill
+        ws.cell(row=i, column=1).font   = font_bold
+        ws.cell(row=i, column=1).border = border
+        ws.cell(row=i, column=1).alignment = center
+        ws.cell(row=i, column=2, value=meaning).fill = fill
+        ws.cell(row=i, column=2).border = border
+        ws.cell(row=i, column=3, value="").fill = fill
+        ws.cell(row=i, column=3).border = border
+
+    ws.append([])
+
+    header_row = 7
+    cols = list(df_new.columns)
+    for j, col in enumerate(cols, start=1):
+        cell = ws.cell(row=header_row, column=j, value=col)
+        cell.fill      = fill_header
+        cell.font      = font_white
+        cell.alignment = center
+        cell.border    = border
+        ws.column_dimensions[get_column_letter(j)].width = max(15, len(str(col)) + 4)
+
+    df_new_reset = df_new.reset_index(drop=True)
+
+    for _, row in df_new_reset.iterrows():
+        key_val = str(row.get(key_col, "")).strip()
+        if key_val in added:
+            fill = fill_green
+        elif key_val in modified:
+            fill = fill_yellow
+        else:
+            fill = fill_white
+
+        data_row = [str(row[col]) if pd.notna(row[col]) else "" for col in cols]
+        ws.append(data_row)
+        current_row = ws.max_row
+        for j in range(1, len(cols) + 1):
+            ws.cell(row=current_row, column=j).fill   = fill
+            ws.cell(row=current_row, column=j).border = border
+            ws.cell(row=current_row, column=j).alignment = Alignment(vertical="center")
+
+    if deleted:
+        for del_key in sorted(deleted):
+            ws.append(["[SUPPRIME] " + del_key] + [""] * (len(cols) - 1))
+            current_row = ws.max_row
+            for j in range(1, len(cols) + 1):
+                ws.cell(row=current_row, column=j).fill   = fill_red
+                ws.cell(row=current_row, column=j).border = border
+                ws.cell(row=current_row, column=j).font   = Font(italic=True)
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
 
 # =============================
 # 🎨 DISPLAY COMPARISON RESULTS
@@ -789,10 +889,16 @@ elif menu == "🔬 Deep Comparison":
 
     st.title("🔬 Deep Column Comparison")
 
-    if "deep_result" not in st.session_state:
-        st.session_state["deep_result"] = None
-    if "deep_section" not in st.session_state:
-        st.session_state["deep_section"] = None
+    # Initialiser session_state
+    for key, default in [
+        ("deep_result", None),
+        ("deep_section", None),
+        ("saved_section", None),
+        ("saved_key_col", None),
+        ("saved_selected_cols", []),
+    ]:
+        if key not in st.session_state:
+            st.session_state[key] = default
 
     if new_pdf and old_pdf:
 
@@ -811,7 +917,11 @@ elif menu == "🔬 Deep Comparison":
 
         if common:
 
-            section = st.selectbox("🎯 Section", common)
+            # Section → garder le dernier choix
+            saved_section = st.session_state.get("saved_section")
+            section_index = common.index(saved_section) if saved_section in common else 0
+            section = st.selectbox("🎯 Section", common, index=section_index)
+            st.session_state["saved_section"] = section
 
             with pdfplumber.open(p1) as pdf:
                 n1 = len(pdf.pages)
@@ -834,12 +944,22 @@ elif menu == "🔬 Deep Comparison":
 
                 all_cols = list(set(fnew.columns) & set(fold.columns))
 
-                key_col = st.selectbox("🔑 Key column", all_cols)
+                # Key column → garder le dernier choix
+                saved_key = st.session_state.get("saved_key_col")
+                key_index = all_cols.index(saved_key) if saved_key in all_cols else 0
+                key_col = st.selectbox("🔑 Key column", all_cols, index=key_index)
+                st.session_state["saved_key_col"] = key_col
 
+                # Columns to compare → garder les derniers choix
+                available_cols = [c for c in all_cols if c != key_col]
+                saved_cols = st.session_state.get("saved_selected_cols", [])
+                default_cols = [c for c in saved_cols if c in available_cols]
                 selected_cols = st.multiselect(
                     "📌 Columns to compare",
-                    [c for c in all_cols if c != key_col]
+                    available_cols,
+                    default=default_cols
                 )
+                st.session_state["saved_selected_cols"] = selected_cols
 
                 if st.button("🚀 Run Deep Comparison"):
                     st.session_state["deep_result"] = deep_compare(
@@ -853,6 +973,31 @@ elif menu == "🔬 Deep Comparison":
                     display_comparison_results(
                         st.session_state["deep_result"],
                         st.session_state["deep_section"]
+                    )
+
+                    # ── EXPORT EXCEL COLORÉ ──────────────────
+                    st.markdown("---")
+                    st.subheader("📥 Export Excel coloré")
+                    st.markdown("""
+                    <div style="background:#eaf4fb; border-radius:10px; padding:0.8rem 1rem; margin-bottom:0.8rem;">
+                        <b>🟢 Vert</b> = Ajouté &nbsp;|&nbsp;
+                        <b style="color:#c0392b">🔴 Rouge</b> = Supprimé &nbsp;|&nbsp;
+                        <b style="color:#d68910">🟡 Jaune</b> = Modifié &nbsp;|&nbsp;
+                        <b>⬜ Blanc</b> = Identique
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    excel_buffer = export_excel_colored(
+                        fnew,
+                        st.session_state["deep_result"],
+                        key_col
+                    )
+                    st.download_button(
+                        label="⬇️ Télécharger Excel coloré",
+                        data=excel_buffer,
+                        file_name=f"comparaison_{st.session_state['deep_section'].replace(' ', '_')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
                     )
 
     else:
