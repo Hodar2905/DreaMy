@@ -443,23 +443,42 @@ def export_excel_colored(df_new, df_old, key_col, section):
         cell.border    = border
         ws.column_dimensions[get_column_letter(j)].width = max(18, len(str(col)) + 4)
 
-    # ── DONNÉES NEW (colorées) ────────────────────────────────
+    # ── DONNÉES NEW (colorées cellule par cellule) ──────────
     for _, row in df_new.iterrows():
         key_val = str(row.get(key_col, "")).strip()
-        if key_val in added:
-            fill = fill_green
-        elif key_val in modified:
-            fill = fill_yellow
-        else:
-            fill = fill_white
 
         data_row = [str(row[col]) for col in cols]
         ws.append(data_row)
         cur = ws.max_row
-        for j in range(1, len(cols) + 1):
-            ws.cell(row=cur, column=j).fill      = fill
-            ws.cell(row=cur, column=j).border    = border
-            ws.cell(row=cur, column=j).alignment = Alignment(vertical="center")
+
+        if key_val in added:
+            # Toute la ligne verte
+            for j in range(1, len(cols) + 1):
+                ws.cell(row=cur, column=j).fill      = fill_green
+                ws.cell(row=cur, column=j).border    = border
+                ws.cell(row=cur, column=j).alignment = Alignment(vertical="center")
+        else:
+            # Coloration cellule par cellule
+            old_row = None
+            if key_val in old_indexed.index:
+                old_row = old_indexed.loc[key_val]
+                if isinstance(old_row, pd.DataFrame):
+                    old_row = old_row.iloc[0]
+
+            for j, col in enumerate(cols, start=1):
+                cell = ws.cell(row=cur, column=j)
+                cell.border    = border
+                cell.alignment = Alignment(vertical="center")
+
+                if old_row is not None and col != key_col:
+                    new_val = str(row.get(col, "")).strip()
+                    old_val = str(old_row.get(col, "")).strip()
+                    if new_val != old_val:
+                        cell.fill = fill_yellow  # Cellule modifiée
+                    else:
+                        cell.fill = fill_white   # Identique
+                else:
+                    cell.fill = fill_white
 
     # ── ÉQUIPEMENTS SUPPRIMÉS (en rouge à la fin) ─────────────
     if deleted:
@@ -1006,22 +1025,36 @@ elif menu == "🔬 Deep Comparison":
                 key_col = st.selectbox("🔑 Key column", all_cols, index=key_index)
                 st.session_state["saved_key_col"] = key_col
 
-                # Columns to compare → garder les derniers choix
+                # ── Colonnes à comparer (écran) ──────────────
                 available_cols = [c for c in all_cols if c != key_col]
                 saved_cols = st.session_state.get("saved_selected_cols", [])
                 default_cols = [c for c in saved_cols if c in available_cols]
                 selected_cols = st.multiselect(
-                    "📌 Columns to compare",
+                    "📌 Colonnes à comparer (résultats à l'écran)",
                     available_cols,
                     default=default_cols
                 )
                 st.session_state["saved_selected_cols"] = selected_cols
+
+                # ── Colonnes à inclure dans l'Excel ──────────
+                saved_excel_cols = st.session_state.get("saved_excel_cols", [])
+                default_excel_cols = [c for c in saved_excel_cols if c in available_cols]
+                excel_cols = st.multiselect(
+                    "📊 Colonnes à inclure dans l'Excel exporté",
+                    available_cols,
+                    default=default_excel_cols if default_excel_cols else available_cols,
+                    help="Choisissez exactement les colonnes que vous voulez voir dans le fichier Excel coloré"
+                )
+                st.session_state["saved_excel_cols"] = excel_cols
 
                 if st.button("🚀 Run Deep Comparison"):
                     st.session_state["deep_result"] = deep_compare(
                         fnew, fold, key_col, selected_cols
                     )
                     st.session_state["deep_section"] = section
+                    st.session_state["fnew_snapshot"] = fnew.copy()
+                    st.session_state["fold_snapshot"] = fold.copy()
+                    st.session_state["excel_cols_snapshot"] = excel_cols
                     if "param_filter" in st.session_state:
                         del st.session_state["param_filter"]
 
@@ -1038,14 +1071,24 @@ elif menu == "🔬 Deep Comparison":
                     <div style="background:#eaf4fb; border-radius:10px; padding:0.8rem 1rem; margin-bottom:0.8rem;">
                         <b>🟢 Vert</b> = Ajouté &nbsp;|&nbsp;
                         <b style="color:#c0392b">🔴 Rouge</b> = Supprimé &nbsp;|&nbsp;
-                        <b style="color:#d68910">🟡 Jaune</b> = Modifié &nbsp;|&nbsp;
+                        <b style="color:#d68910">🟡 Jaune cellule</b> = Valeur modifiée &nbsp;|&nbsp;
                         <b>⬜ Blanc</b> = Identique
                     </div>
                     """, unsafe_allow_html=True)
 
+                    # Utiliser snapshot sauvegardé
+                    fnew_snap = st.session_state.get("fnew_snapshot", fnew)
+                    fold_snap = st.session_state.get("fold_snapshot", fold)
+                    excel_cols_snap = st.session_state.get("excel_cols_snapshot", excel_cols)
+
+                    # Filtrer sur les colonnes Excel choisies + key_col
+                    excel_cols_final = [key_col] + [c for c in excel_cols_snap if c != key_col]
+                    fnew_excel = fnew_snap[[c for c in excel_cols_final if c in fnew_snap.columns]]
+                    fold_excel = fold_snap[[c for c in excel_cols_final if c in fold_snap.columns]]
+
                     excel_buffer = export_excel_colored(
-                        fnew,
-                        fold,
+                        fnew_excel,
+                        fold_excel,
                         key_col,
                         st.session_state["deep_section"]
                     )
