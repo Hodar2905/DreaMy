@@ -347,11 +347,46 @@ def deep_compare(df_new, df_old, key_col, selected_cols):
 # =============================
 # 📊 EXPORT EXCEL COLORÉ
 # =============================
-def export_excel_colored(df_new, result, key_col):
-    added    = set(result["added"])
-    deleted  = set(result["deleted"])
-    modified = set(result["modified"].keys())
+def export_excel_colored(df_new, df_old, key_col, section):
+    """
+    Compare TOUTES les colonnes présentes dans Data Tables.
+    Coloration ligne par ligne :
+      - Vert  : équipement ajouté (dans new, pas dans old)
+      - Rouge : équipement supprimé (dans old, pas dans new)
+      - Jaune : au moins une colonne a changé
+      - Blanc : identique
+    """
+    df_new = df_new.fillna("").astype(str)
+    df_old = df_old.fillna("").astype(str)
 
+    # Construire les sets depuis key_col
+    new_keys = set(df_new[key_col].str.strip())
+    old_keys = set(df_old[key_col].str.strip())
+
+    added   = new_keys - old_keys
+    deleted = old_keys - new_keys
+    common  = new_keys & old_keys
+
+    # Index old par key
+    old_indexed = df_old.set_index(df_old[key_col].str.strip())
+
+    # Colonnes communes pour comparaison
+    common_cols = [c for c in df_new.columns if c in df_old.columns and c != key_col]
+
+    # Déterminer les modifiés parmi les communs
+    modified = set()
+    for _, row in df_new.iterrows():
+        k = str(row[key_col]).strip()
+        if k in common and k in old_indexed.index:
+            old_row = old_indexed.loc[k]
+            if isinstance(old_row, pd.DataFrame):
+                old_row = old_row.iloc[0]
+            for col in common_cols:
+                if str(row.get(col, "")).strip() != str(old_row.get(col, "")).strip():
+                    modified.add(k)
+                    break
+
+    # Styles
     fill_green  = PatternFill("solid", fgColor="C6EFCE")
     fill_red    = PatternFill("solid", fgColor="FFC7CE")
     fill_yellow = PatternFill("solid", fgColor="FFEB9C")
@@ -370,31 +405,34 @@ def export_excel_colored(df_new, result, key_col):
     ws = wb.active
     ws.title = "Comparison Result"
 
-    ws.merge_cells("A1:C1")
-    ws["A1"] = "LEGENDE"
-    ws["A1"].fill      = fill_header
-    ws["A1"].font      = Font(bold=True, color="FFFFFF", size=12)
-    ws["A1"].alignment = center
-    ws["A1"].border    = border
+    # ── TITRE ────────────────────────────────────────────────
+    nb_cols = len(df_new.columns)
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=nb_cols)
+    ws.cell(row=1, column=1, value=f"COMPARAISON - {section}").fill = fill_header
+    ws.cell(row=1, column=1).font      = Font(bold=True, color="FFFFFF", size=13)
+    ws.cell(row=1, column=1).alignment = center
+    ws.cell(row=1, column=1).border    = border
 
+    # ── LÉGENDE ──────────────────────────────────────────────
     legends = [
-        (fill_green,  "Vert",   "Equipement AJOUTE"),
-        (fill_red,    "Rouge",  "Equipement SUPPRIME"),
-        (fill_yellow, "Jaune",  "Equipement MODIFIE"),
-        (fill_white,  "Blanc",  "Equipement IDENTIQUE"),
+        (fill_green,  "Vert",   "Equipement AJOUTE dans la NEW list"),
+        (fill_red,    "Rouge",  "Equipement SUPPRIME (present dans OLD, absent dans NEW)"),
+        (fill_yellow, "Jaune",  "Equipement MODIFIE (au moins un parametre a change)"),
+        (fill_white,  "Blanc",  "Equipement IDENTIQUE (aucun changement)"),
     ]
     for i, (fill, color_label, meaning) in enumerate(legends, start=2):
         ws.cell(row=i, column=1, value=color_label).fill = fill
-        ws.cell(row=i, column=1).font   = font_bold
-        ws.cell(row=i, column=1).border = border
+        ws.cell(row=i, column=1).font      = font_bold
+        ws.cell(row=i, column=1).border    = border
         ws.cell(row=i, column=1).alignment = center
         ws.cell(row=i, column=2, value=meaning).fill = fill
-        ws.cell(row=i, column=2).border = border
-        ws.cell(row=i, column=3, value="").fill = fill
-        ws.cell(row=i, column=3).border = border
+        ws.cell(row=i, column=2).border    = border
+        if nb_cols > 2:
+            ws.merge_cells(start_row=i, start_column=2, end_row=i, end_column=nb_cols)
 
-    ws.append([])
+    ws.append([])  # ligne vide
 
+    # ── EN-TÊTES ─────────────────────────────────────────────
     header_row = 7
     cols = list(df_new.columns)
     for j, col in enumerate(cols, start=1):
@@ -403,11 +441,10 @@ def export_excel_colored(df_new, result, key_col):
         cell.font      = font_white
         cell.alignment = center
         cell.border    = border
-        ws.column_dimensions[get_column_letter(j)].width = max(15, len(str(col)) + 4)
+        ws.column_dimensions[get_column_letter(j)].width = max(18, len(str(col)) + 4)
 
-    df_new_reset = df_new.reset_index(drop=True)
-
-    for _, row in df_new_reset.iterrows():
+    # ── DONNÉES NEW (colorées) ────────────────────────────────
+    for _, row in df_new.iterrows():
         key_val = str(row.get(key_col, "")).strip()
         if key_val in added:
             fill = fill_green
@@ -416,22 +453,41 @@ def export_excel_colored(df_new, result, key_col):
         else:
             fill = fill_white
 
-        data_row = [str(row[col]) if pd.notna(row[col]) else "" for col in cols]
+        data_row = [str(row[col]) for col in cols]
         ws.append(data_row)
-        current_row = ws.max_row
+        cur = ws.max_row
         for j in range(1, len(cols) + 1):
-            ws.cell(row=current_row, column=j).fill   = fill
-            ws.cell(row=current_row, column=j).border = border
-            ws.cell(row=current_row, column=j).alignment = Alignment(vertical="center")
+            ws.cell(row=cur, column=j).fill      = fill
+            ws.cell(row=cur, column=j).border    = border
+            ws.cell(row=cur, column=j).alignment = Alignment(vertical="center")
 
+    # ── ÉQUIPEMENTS SUPPRIMÉS (en rouge à la fin) ─────────────
     if deleted:
+        # Ligne séparatrice
+        ws.append([""] * len(cols))
+        cur = ws.max_row
+        ws.merge_cells(start_row=cur, start_column=1, end_row=cur, end_column=len(cols))
+        ws.cell(row=cur, column=1, value="⬇ EQUIPEMENTS SUPPRIMES (présents dans OLD, absents dans NEW)").fill = fill_red
+        ws.cell(row=cur, column=1).font      = Font(bold=True, color="9C0006")
+        ws.cell(row=cur, column=1).alignment = center
+        ws.cell(row=cur, column=1).border    = border
+
         for del_key in sorted(deleted):
-            ws.append(["[SUPPRIME] " + del_key] + [""] * (len(cols) - 1))
-            current_row = ws.max_row
+            # Récupérer la ligne complète depuis old
+            if del_key in old_indexed.index:
+                old_row = old_indexed.loc[del_key]
+                if isinstance(old_row, pd.DataFrame):
+                    old_row = old_row.iloc[0]
+                data_row = [str(old_row.get(col, "")) for col in cols]
+            else:
+                data_row = [del_key] + [""] * (len(cols) - 1)
+
+            ws.append(data_row)
+            cur = ws.max_row
             for j in range(1, len(cols) + 1):
-                ws.cell(row=current_row, column=j).fill   = fill_red
-                ws.cell(row=current_row, column=j).border = border
-                ws.cell(row=current_row, column=j).font   = Font(italic=True)
+                ws.cell(row=cur, column=j).fill   = fill_red
+                ws.cell(row=cur, column=j).border = border
+                ws.cell(row=cur, column=j).font   = Font(italic=True, color="9C0006")
 
     buffer = io.BytesIO()
     wb.save(buffer)
@@ -989,8 +1045,9 @@ elif menu == "🔬 Deep Comparison":
 
                     excel_buffer = export_excel_colored(
                         fnew,
-                        st.session_state["deep_result"],
-                        key_col
+                        fold,
+                        key_col,
+                        st.session_state["deep_section"]
                     )
                     st.download_button(
                         label="⬇️ Télécharger Excel coloré",
