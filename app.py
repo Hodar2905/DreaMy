@@ -1208,3 +1208,4 @@ elif menu == "📁 Exports & Reports":
         # ── PDF Report (coming soon) ──────────────────────────
         st.subheader("📝 PDF Report")
         st.info("🚧 PDF Report generation coming soon in the next update!")
+
