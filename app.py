@@ -76,6 +76,7 @@ def show_pdf(file):
 # =============================
 # 📑 INDEX
 # =============================
+@st.cache_data
 def extract_index_and_info(pdf_path):
     index_map = {}
     project_name = "Projet inconnu"
@@ -100,6 +101,7 @@ def extract_index_and_info(pdf_path):
 # =============================
 # 🔥 FILTER INDEX
 # =============================
+@st.cache_data
 def filter_sections(index_map):
     return {
         k: v for k, v in index_map.items()
@@ -109,6 +111,7 @@ def filter_sections(index_map):
 # =============================
 # 🔥 PAGE RANGE
 # =============================
+@st.cache_data
 def get_section_ranges(index_map, total_pages):
     sorted_items = sorted(index_map.items(), key=lambda x: x[1])
     ranges = {}
@@ -126,6 +129,7 @@ def get_section_ranges(index_map, total_pages):
 # =============================
 # ⚡ PAGE DATA
 # =============================
+@st.cache_data
 def get_pages_data(pdf_path):
     pages = []
 
@@ -258,6 +262,7 @@ def detect_real_header(pdf_path, section_start_page, nb_cols):
 # =============================
 # 📊 EXTRACT TABLES
 # =============================
+@st.cache_data
 def extract_tables_range(pdf_path, start, end):
     tables = []
 
@@ -637,6 +642,46 @@ menu = st.sidebar.radio("", [
 new_pdf = st.sidebar.file_uploader("🆕 New List", type=["pdf"])
 old_pdf = st.sidebar.file_uploader("📁 Old List", type=["pdf"])
 
+# ── Load PDFs once into session_state ─────────────────────
+if new_pdf is not None:
+    new_name = new_pdf.name
+    if st.session_state.get("new_pdf_name") != new_name:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as t:
+            t.write(new_pdf.read())
+            st.session_state["p1"] = t.name
+        st.session_state["new_pdf_name"] = new_name
+        # Reset all cached data when PDF changes
+        for k in ["idx_new", "common_sections", "fnew_current", "fold_current",
+                  "last_all_cols", "deep_result", "fnew_snapshot", "fold_snapshot"]:
+            st.session_state.pop(k, None)
+
+if old_pdf is not None:
+    old_name = old_pdf.name
+    if st.session_state.get("old_pdf_name") != old_name:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as t:
+            t.write(old_pdf.read())
+            st.session_state["p2"] = t.name
+        st.session_state["old_pdf_name"] = old_name
+        for k in ["idx_old", "common_sections", "fnew_current", "fold_current",
+                  "last_all_cols", "deep_result", "fnew_snapshot", "fold_snapshot"]:
+            st.session_state.pop(k, None)
+
+# Extract index once and cache in session_state
+if "p1" in st.session_state and "idx_new" not in st.session_state:
+    idx_new, _, _ = extract_index_and_info(st.session_state["p1"])
+    st.session_state["idx_new"] = idx_new
+
+if "p2" in st.session_state and "idx_old" not in st.session_state:
+    idx_old, _, _ = extract_index_and_info(st.session_state["p2"])
+    st.session_state["idx_old"] = idx_old
+
+if "idx_new" in st.session_state and "idx_old" in st.session_state and "common_sections" not in st.session_state:
+    idx_new = st.session_state["idx_new"]
+    idx_old = st.session_state["idx_old"]
+    st.session_state["common_sections"] = sorted(
+        list(set(filter_sections(idx_new)) & set(filter_sections(idx_old)))
+    )
+
 # =============================
 # 🏠 HOME — DASHBOARD
 # =============================
@@ -976,90 +1021,90 @@ elif menu == "🔬 Deep Comparison":
         if key not in st.session_state:
             st.session_state[key] = default
 
-    if new_pdf and old_pdf:
+    pdfs_ready = "p1" in st.session_state and "p2" in st.session_state and "common_sections" in st.session_state
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as t1:
-            t1.write(new_pdf.read())
-            p1 = t1.name
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as t2:
-            t2.write(old_pdf.read())
-            p2 = t2.name
-
-        idx_new, _, _ = extract_index_and_info(p1)
-        idx_old, _, _ = extract_index_and_info(p2)
-
-        common = list(set(filter_sections(idx_new)) & set(filter_sections(idx_old)))
+    if not new_pdf or not old_pdf:
+        st.warning("⚠️ Please upload both PDFs in the sidebar.")
+    elif not pdfs_ready:
+        st.info("⏳ Loading PDFs... please wait.")
+    else:
+        p1     = st.session_state["p1"]
+        p2     = st.session_state["p2"]
+        idx_new = st.session_state["idx_new"]
+        idx_old = st.session_state["idx_old"]
+        common  = st.session_state["common_sections"]
 
         if common:
 
-            # Section → garder le dernier choix
-            saved_section = st.session_state.get("saved_section")
-            section_index = common.index(saved_section) if saved_section in common else 0
-            section = st.selectbox("🎯 Section", common, index=section_index)
-            st.session_state["saved_section"] = section
+            # ── FORM : all choices in one go, no reload ──────
+            with st.form("deep_comparison_form"):
+                st.markdown("#### ⚙️ Comparison Settings")
+                st.markdown("*Make all your selections below then click **Run Deep Comparison***")
 
-            with pdfplumber.open(p1) as pdf:
-                n1 = len(pdf.pages)
-            with pdfplumber.open(p2) as pdf:
-                n2 = len(pdf.pages)
+                saved_section = st.session_state.get("saved_section")
+                section_index = common.index(saved_section) if saved_section in common else 0
+                section = st.selectbox("🎯 Section", common, index=section_index)
 
-            r1 = get_section_ranges(filter_sections(idx_new), n1)
-            r2 = get_section_ranges(filter_sections(idx_old), n2)
-
-            s1, e1 = r1[section]
-            s2, e2 = r2[section]
-
-            tnew = extract_tables_range(p1, s1, e1)
-            told = extract_tables_range(p2, s2, e2)
-
-            fnew = merge_tables_clean(tnew, p1, s1)
-            fold = merge_tables_clean(told, p2, s2)
-
-            if not fnew.empty and not fold.empty:
-
-                all_cols = list(set(fnew.columns) & set(fold.columns))
-
-                # Key column → garder le dernier choix
+                # Get columns from last known section or current
+                last_cols = st.session_state.get("last_all_cols", [])
                 saved_key = st.session_state.get("saved_key_col")
-                key_index = all_cols.index(saved_key) if saved_key in all_cols else 0
-                key_col = st.selectbox("🔑 Key column", all_cols, index=key_index)
-                st.session_state["saved_key_col"] = key_col
+                key_index = last_cols.index(saved_key) if saved_key in last_cols and last_cols else 0
+                key_col = st.selectbox("🔑 Key column", last_cols if last_cols else ["— run first to load —"], index=key_index)
 
-                # ── Colonnes à comparer (écran) ──────────────
-                available_cols = [c for c in all_cols if c != key_col]
+                available_cols = [c for c in last_cols if c != key_col]
                 saved_cols = st.session_state.get("saved_selected_cols", [])
                 default_cols = [c for c in saved_cols if c in available_cols]
                 selected_cols = st.multiselect(
-                    "📌 Colonnes à comparer (résultats à l'écran)",
+                    "📌 Columns to compare (screen results)",
                     available_cols,
                     default=default_cols
                 )
-                st.session_state["saved_selected_cols"] = selected_cols
 
-                if st.button("🚀 Run Deep Comparison"):
-                    st.session_state["deep_result"] = deep_compare(
-                        fnew, fold, key_col, selected_cols
-                    )
-                    st.session_state["deep_section"] = section
-                    st.session_state["fnew_snapshot"] = fnew.copy()
-                    st.session_state["fold_snapshot"] = fold.copy()
-                    st.session_state["excel_cols_snapshot"] = []
-                    if "param_filter" in st.session_state:
-                        del st.session_state["param_filter"]
+                submitted = st.form_submit_button("🚀 Run Deep Comparison", use_container_width=True)
 
-                if st.session_state["deep_result"] is not None:
-                    display_comparison_results(
-                        st.session_state["deep_result"],
-                        st.session_state["deep_section"]
-                    )
+            if submitted:
+                with st.spinner("⏳ Extracting and comparing data..."):
+                    with pdfplumber.open(p1) as pdf:
+                        n1 = len(pdf.pages)
+                    with pdfplumber.open(p2) as pdf:
+                        n2 = len(pdf.pages)
 
-                    # ── Redirect to Exports & Reports ────────
-                    st.markdown("---")
-                    st.info("📁 Go to **Exports & Reports** in the menu to download the colored Excel file and reports.")
+                    r1 = get_section_ranges(filter_sections(idx_new), n1)
+                    r2 = get_section_ranges(filter_sections(idx_old), n2)
 
-    else:
-        st.warning("Upload both PDFs")
+                    s1, e1 = r1[section]
+                    s2, e2 = r2[section]
+
+                    tnew = extract_tables_range(p1, s1, e1)
+                    told = extract_tables_range(p2, s2, e2)
+
+                    fnew = merge_tables_clean(tnew, p1, s1)
+                    fold = merge_tables_clean(told, p2, s2)
+
+                    if not fnew.empty and not fold.empty:
+                        all_cols = sorted(list(set(fnew.columns) & set(fold.columns)))
+                        st.session_state["last_all_cols"] = all_cols
+                        st.session_state["saved_section"]  = section
+                        st.session_state["saved_key_col"]  = key_col
+                        st.session_state["saved_selected_cols"] = selected_cols
+                        st.session_state["deep_result"]  = deep_compare(fnew, fold, key_col, selected_cols)
+                        st.session_state["deep_section"] = section
+                        st.session_state["fnew_snapshot"] = fnew.copy()
+                        st.session_state["fold_snapshot"] = fold.copy()
+                        st.session_state["excel_cols_snapshot"] = []
+                        if "param_filter" in st.session_state:
+                            del st.session_state["param_filter"]
+                        st.success("✅ Comparison done!")
+                    else:
+                        st.warning("⚠️ No data found for this section.")
+
+            if st.session_state.get("deep_result") is not None:
+                display_comparison_results(
+                    st.session_state["deep_result"],
+                    st.session_state["deep_section"]
+                )
+                st.markdown("---")
+                st.info("📁 Go to **Exports & Reports** in the menu to download the colored Excel file.")
 
 # =============================
 # 📁 EXPORTS & REPORTS
@@ -1106,35 +1151,45 @@ elif menu == "📁 Exports & Reports":
         </div>
         """, unsafe_allow_html=True)
 
-        # Columns selector for Excel
-        all_available = [c for c in fnew_snap.columns if c != key_col_snap]
-        saved_excel_cols = st.session_state.get("saved_excel_cols", [])
-        default_excel = [c for c in saved_excel_cols if c in all_available]
+        # ── FORM : select columns then generate ──────────────
+        with st.form("excel_export_form"):
+            st.markdown("*Select the columns to include in the Excel file, then click **Generate Excel***")
+            all_available = [c for c in fnew_snap.columns if c != key_col_snap]
+            saved_excel_cols = st.session_state.get("saved_excel_cols", [])
+            default_excel = [c for c in saved_excel_cols if c in all_available]
 
-        excel_cols = st.multiselect(
-            "📋 Select columns to include in Excel",
-            all_available,
-            default=default_excel if default_excel else all_available,
-            help="Select exactly the columns you want in the exported Excel file"
-        )
-        st.session_state["saved_excel_cols"] = excel_cols
-
-        if excel_cols:
-            excel_cols_final = [key_col_snap] + [c for c in excel_cols if c != key_col_snap]
-            fnew_excel = fnew_snap[[c for c in excel_cols_final if c in fnew_snap.columns]]
-            fold_excel = fold_snap[[c for c in excel_cols_final if c in fold_snap.columns]]
-
-            excel_buffer = export_excel_colored(
-                fnew_excel,
-                fold_excel,
-                key_col_snap,
-                deep_section
+            excel_cols = st.multiselect(
+                "📋 Select columns to include in Excel",
+                all_available,
+                default=default_excel if default_excel else all_available,
+                help="Select exactly the columns you want in the exported Excel file"
             )
+            generate = st.form_submit_button("⚙️ Generate Excel", use_container_width=True)
 
-            import datetime
-            now = datetime.datetime.now().strftime("%Y%m%d_%H%M")
-            filename = f"comparison_{deep_section.replace(' ', '_')}_{now}.xlsx"
+        if generate:
+            st.session_state["saved_excel_cols"] = excel_cols
+            st.session_state["excel_ready"] = True
 
+        excel_cols = st.session_state.get("saved_excel_cols", all_available if "all_available" in dir() else [])
+
+        if st.session_state.get("excel_ready") and excel_cols:
+            with st.spinner("⏳ Generating Excel file..."):
+                excel_cols_final = [key_col_snap] + [c for c in excel_cols if c != key_col_snap]
+                fnew_excel = fnew_snap[[c for c in excel_cols_final if c in fnew_snap.columns]]
+                fold_excel = fold_snap[[c for c in excel_cols_final if c in fold_snap.columns]]
+
+                excel_buffer = export_excel_colored(
+                    fnew_excel,
+                    fold_excel,
+                    key_col_snap,
+                    deep_section
+                )
+
+                import datetime
+                now = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+                filename = f"comparison_{deep_section.replace(' ', '_')}_{now}.xlsx"
+
+            st.success("✅ Excel file ready!")
             st.download_button(
                 label="⬇️ Download Colored Excel",
                 data=excel_buffer,
@@ -1143,6 +1198,8 @@ elif menu == "📁 Exports & Reports":
                 use_container_width=True
             )
             st.caption(f"File: `{filename}` — {len(excel_cols_final)} columns — {len(fnew_excel)} rows")
+        elif not st.session_state.get("excel_ready"):
+            st.info("👆 Select your columns above and click **Generate Excel**")
         else:
             st.warning("Please select at least one column to export.")
 
