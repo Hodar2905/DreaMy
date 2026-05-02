@@ -882,12 +882,13 @@ def display_comparison_results(result, section):
 # =============================
 st.sidebar.title("📌 Menu")
 menu = st.sidebar.radio("", [
-    "🏠 Accueil",
+    "🏠 Home",
     "⚡ Quick Compare",
     "📄 Viewer",
     "📑 Index",
     "📊 Tables",
     "🔬 Deep Comparison",
+    "📊 Dashboard",
     "📁 Exports & Reports"
 ])
 
@@ -935,207 +936,212 @@ if "idx_new" in st.session_state and "idx_old" in st.session_state and "common_s
     )
 
 # =============================
-# 🏠 HOME — DASHBOARD
 # =============================
-if menu == "🏠 Accueil":
+# 🏠 HOME
+# =============================
+if menu == "🏠 Home":
 
+    # ── Hero Header ──────────────────────────────────────────
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-                padding: 2rem 2.5rem; border-radius: 16px; margin-bottom: 1.5rem;">
-        <h1 style="color:#e94560; margin:0; font-size:2.2rem;">🏭 Smart PDF Comparator</h1>
-        <p style="color:#a8b2d8; margin:0.4rem 0 0; font-size:1rem;">
+    <div style="
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        padding: 3rem 2.5rem 2rem;
+        border-radius: 20px;
+        margin-bottom: 2rem;
+        text-align: center;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    ">
+        <div style="font-size:3.5rem; margin-bottom:0.5rem;">🏭</div>
+        <h1 style="color:#e94560; margin:0; font-size:2.8rem; font-weight:800; letter-spacing:1px;">
+            Smart PDF Comparator
+        </h1>
+        <p style="color:#a8b2d8; margin:0.6rem 0 0; font-size:1.1rem;">
             Industrial Electrical Load List — Comparison & Analysis Platform
         </p>
-        <p style="color:#6c757d; margin:0.6rem 0 0; font-size:0.82rem;">
-            Prepared by <strong style="color:#e94560;">Khadija Hodar</strong>
+        <p style="color:#6c757d; margin:0.8rem 0 0; font-size:0.85rem;">
+            Powered by pdfplumber · pandas · Streamlit
         </p>
     </div>
     """, unsafe_allow_html=True)
 
-    deep_result  = st.session_state.get("deep_result", None)
-    deep_section = st.session_state.get("deep_section", "—")
+    # ── How to use title ─────────────────────────────────────
+    st.markdown("""
+    <div style="text-align:center; margin-bottom:1.5rem;">
+        <h2 style="color:#0f3460; font-size:1.6rem; font-weight:700;">
+            📖 How to Use This Application
+        </h2>
+        <p style="color:#6c757d; font-size:0.95rem;">
+            Follow the steps below to compare your PDF load lists efficiently
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    has_result = deep_result is not None
-    n_added    = len(deep_result["added"])    if has_result else None
-    n_deleted  = len(deep_result["deleted"])  if has_result else None
-    n_modified = len(deep_result["modified"]) if has_result else None
-    n_total    = (n_added + n_deleted + n_modified) if has_result else None
+    # ── Step cards ───────────────────────────────────────────
+    steps = [
+        {
+            "icon": "📂",
+            "step": "Step 1",
+            "title": "Upload PDFs",
+            "title_fr": "Charger les PDFs",
+            "desc": "Upload your NEW and OLD load list PDF files using the sidebar on the left.",
+            "desc_fr": "Chargez vos fichiers PDF (nouvelle et ancienne liste) dans la barre latérale.",
+            "color": "#1a5276",
+            "bg": "#eaf2fb"
+        },
+        {
+            "icon": "⚡",
+            "step": "Step 2",
+            "title": "Quick Compare",
+            "title_fr": "Comparaison Rapide",
+            "desc": "Get an instant overview — are the PDFs identical or different? See similarity percentage.",
+            "desc_fr": "Obtenez un aperçu rapide : les PDFs sont-ils identiques ? Voir le pourcentage de similarité.",
+            "color": "#7d6608",
+            "bg": "#fef9e7"
+        },
+        {
+            "icon": "📑",
+            "step": "Step 3",
+            "title": "Check Index",
+            "title_fr": "Vérifier l'Index",
+            "desc": "View the table of contents extracted from each PDF to verify sections.",
+            "desc_fr": "Consultez la table des matières extraite de chaque PDF pour vérifier les sections.",
+            "color": "#1e8449",
+            "bg": "#eafaf1"
+        },
+        {
+            "icon": "📊",
+            "step": "Step 4",
+            "title": "View Tables",
+            "title_fr": "Voir les Tableaux",
+            "desc": "Browse the extracted data tables side by side — NEW list vs OLD list.",
+            "desc_fr": "Parcourez les tableaux de données extraits côte à côte — liste NEW vs OLD.",
+            "color": "#6c3483",
+            "bg": "#f5eef8"
+        },
+        {
+            "icon": "🔬",
+            "step": "Step 5",
+            "title": "Deep Comparison",
+            "title_fr": "Comparaison Approfondie",
+            "desc": "Select a section, key column and parameters to compare. Find exactly what changed.",
+            "desc_fr": "Sélectionnez une section, colonne clé et paramètres à comparer. Trouvez exactement ce qui a changé.",
+            "color": "#922b21",
+            "bg": "#fdf2f2"
+        },
+        {
+            "icon": "📈",
+            "step": "Step 6",
+            "title": "Dashboard",
+            "title_fr": "Tableau de Bord",
+            "desc": "View visual charts and KPIs summarizing all detected changes after comparison.",
+            "desc_fr": "Visualisez les graphiques et KPIs résumant tous les changements détectés.",
+            "color": "#0f3460",
+            "bg": "#eaf2fb"
+        },
+        {
+            "icon": "📁",
+            "step": "Step 7",
+            "title": "Exports & Reports",
+            "title_fr": "Exports et Rapports",
+            "desc": "Download a colored Excel file and a bilingual PDF report of all changes.",
+            "desc_fr": "Téléchargez un fichier Excel coloré et un rapport PDF bilingue de tous les changements.",
+            "color": "#1e8449",
+            "bg": "#eafaf1"
+        },
+    ]
 
-    col_s1, col_s2 = st.columns(2)
-    with col_s1:
-        if new_pdf:
-            st.success(f"🆕 NEW PDF loaded — `{new_pdf.name}`")
-        else:
-            st.warning("🆕 NEW PDF not uploaded yet")
-    with col_s2:
-        if old_pdf:
-            st.success(f"📁 OLD PDF loaded — `{old_pdf.name}`")
-        else:
-            st.warning("📁 OLD PDF not uploaded yet")
+    # Display 2 cards per row then 3 per row
+    cols_row1 = st.columns(2)
+    cols_row2 = st.columns(3)
+    cols_row3 = st.columns(2)
 
+    card_template = """
+    <div style="
+        background: {bg};
+        border-radius: 16px;
+        padding: 1.4rem 1.2rem;
+        border-left: 5px solid {color};
+        box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+        height: 100%;
+        margin-bottom: 1rem;
+    ">
+        <div style="font-size:2.2rem; margin-bottom:0.4rem;">{icon}</div>
+        <div style="
+            background:{color};
+            color:white;
+            font-size:0.7rem;
+            font-weight:700;
+            padding:2px 8px;
+            border-radius:20px;
+            display:inline-block;
+            margin-bottom:0.5rem;
+            letter-spacing:1px;
+        ">{step}</div>
+        <h4 style="color:{color}; margin:0.3rem 0 0.1rem; font-size:1rem; font-weight:700;">
+            {title}
+        </h4>
+        <p style="color:#6c757d; font-size:0.72rem; font-style:italic; margin:0 0 0.5rem;">
+            {title_fr}
+        </p>
+        <p style="color:#444; font-size:0.82rem; margin:0 0 0.3rem; line-height:1.5;">
+            {desc}
+        </p>
+        <p style="color:#888; font-size:0.75rem; margin:0; font-style:italic; line-height:1.4;">
+            {desc_fr}
+        </p>
+    </div>
+    """
+
+    # Row 1: Step 1 & 2
+    for i, col in enumerate(cols_row1):
+        s = steps[i]
+        col.markdown(card_template.format(**s), unsafe_allow_html=True)
+
+    # Row 2: Step 3, 4, 5
+    for i, col in enumerate(cols_row2):
+        s = steps[i+2]
+        col.markdown(card_template.format(**s), unsafe_allow_html=True)
+
+    # Row 3: Step 6 & 7
+    for i, col in enumerate(cols_row3):
+        s = steps[i+5]
+        col.markdown(card_template.format(**s), unsafe_allow_html=True)
+
+    # ── Quick Status ─────────────────────────────────────────
     st.markdown("---")
+    st.markdown("""
+    <h3 style="color:#0f3460; font-size:1.2rem; font-weight:700; margin-bottom:1rem;">
+        📌 Current Session Status
+    </h3>
+    """, unsafe_allow_html=True)
 
-    st.subheader("📊 Last Deep Comparison Results")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if new_pdf:
+            st.success(f"🆕 NEW PDF: `{new_pdf.name}`")
+        else:
+            st.warning("🆕 NEW PDF: Not uploaded yet")
+    with c2:
+        if old_pdf:
+            st.success(f"📁 OLD PDF: `{old_pdf.name}`")
+        else:
+            st.warning("📁 OLD PDF: Not uploaded yet")
+    with c3:
+        if st.session_state.get("deep_result"):
+            section = st.session_state.get("deep_section", "—")
+            n = len(st.session_state["deep_result"]["added"]) + len(st.session_state["deep_result"]["deleted"]) + len(st.session_state["deep_result"]["modified"])
+            st.success(f"🔬 Comparison done: **{n}** changes in `{section}`")
+        else:
+            st.info("🔬 No comparison run yet")
 
-    if has_result:
-        st.caption(f"Section analysed : **{deep_section}**")
-        k1, k2, k3, k4 = st.columns(4)
-
-        def kpi_card(col, emoji, label, value, bg, fg):
-            col.markdown(f"""
-            <div style="background:{bg}; border-radius:12px; padding:1.2rem 1rem;
-                        text-align:center; border:1px solid {fg}33;">
-                <div style="font-size:2rem;">{emoji}</div>
-                <div style="font-size:2rem; font-weight:700; color:{fg};">{value}</div>
-                <div style="font-size:0.85rem; color:#888; margin-top:4px;">{label}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        kpi_card(k1, "➕", "Added",         n_added,    "#eafaf1", "#1e8449")
-        kpi_card(k2, "➖", "Deleted",       n_deleted,  "#fdf2f2", "#c0392b")
-        kpi_card(k3, "✏️", "Modified",      n_modified, "#fef9e7", "#d68910")
-        kpi_card(k4, "🔢", "Total Changes", n_total,    "#eaf2fb", "#1a5276")
-
-        st.markdown("")
-
-        import json
-
-        modified = deep_result["modified"]
-        rows_mod = []
-        for equip, changes in modified.items():
-            for param, vals in changes.items():
-                rows_mod.append({
-                    "Equipment": equip.replace("\n", " ").strip(),
-                    "Parameter": param.replace("\n", " ").strip(),
-                    "Old": vals["old"],
-                    "New": vals["new"],
-                })
-        df_dash = pd.DataFrame(rows_mod) if rows_mod else pd.DataFrame()
-
-        if not df_dash.empty:
-            chart_col1, chart_col2 = st.columns(2)
-
-            with chart_col1:
-                st.markdown("#### 🍩 Change breakdown")
-                donut_labels = ["Added", "Deleted", "Modified"]
-                donut_values = [n_added, n_deleted, n_modified]
-                donut_colors = ["#1e8449", "#c0392b", "#d68910"]
-
-                donut_html = f"""
-                <canvas id="donut" width="280" height="280"></canvas>
-                <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-                <script>
-                new Chart(document.getElementById('donut'), {{
-                    type: 'doughnut',
-                    data: {{
-                        labels: {json.dumps(donut_labels)},
-                        datasets: [{{
-                            data: {json.dumps(donut_values)},
-                            backgroundColor: {json.dumps(donut_colors)},
-                            borderWidth: 2,
-                            borderColor: '#fff'
-                        }}]
-                    }},
-                    options: {{
-                        cutout: '60%',
-                        plugins: {{
-                            legend: {{ position: 'bottom' }},
-                            tooltip: {{ callbacks: {{
-                                label: ctx => ` ${{ctx.label}}: ${{ctx.parsed}}`
-                            }}}}
-                        }}
-                    }}
-                }});
-                </script>
-                """
-                st.components.v1.html(donut_html, height=300)
-
-            with chart_col2:
-                st.markdown("#### 📊 Top modified parameters")
-                param_counts = df_dash["Parameter"].value_counts().head(10)
-                bar_labels   = param_counts.index.tolist()
-                bar_values   = param_counts.values.tolist()
-
-                bar_html = f"""
-                <canvas id="bar" width="380" height="280"></canvas>
-                <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-                <script>
-                new Chart(document.getElementById('bar'), {{
-                    type: 'bar',
-                    data: {{
-                        labels: {json.dumps(bar_labels)},
-                        datasets: [{{
-                            label: 'Changes',
-                            data: {json.dumps(bar_values)},
-                            backgroundColor: '#0f3460cc',
-                            borderColor: '#e94560',
-                            borderWidth: 1,
-                            borderRadius: 6
-                        }}]
-                    }},
-                    options: {{
-                        indexAxis: 'y',
-                        plugins: {{ legend: {{ display: false }} }},
-                        scales: {{
-                            x: {{ beginAtZero: true, ticks: {{ stepSize: 1 }} }},
-                            y: {{ ticks: {{ font: {{ size: 11 }} }} }}
-                        }}
-                    }}
-                }});
-                </script>
-                """
-                st.components.v1.html(bar_html, height=300)
-
-            st.markdown("#### 🏆 Top 5 most impacted equipment")
-            top5 = (df_dash.groupby("Equipment")
-                           .size()
-                           .sort_values(ascending=False)
-                           .head(5)
-                           .reset_index())
-            top5.columns = ["Equipment", "# Parameters changed"]
-            top5.index += 1
-
-            def highlight_top(row):
-                colors = ["#fff9c4","#fff3cd","#fdebd0","#fdf2f8","#f0f4ff"]
-                idx = row.name - 1
-                c = colors[idx] if idx < len(colors) else ""
-                return [f"background-color:{c}"]*len(row)
-
-            st.dataframe(
-                top5.style.apply(highlight_top, axis=1),
-                use_container_width=True,
-                hide_index=False,
-            )
-
-    else:
-        st.info("💡 No comparison run yet. Go to **🔬 Deep Comparison**, run an analysis, then come back here to see the dashboard.")
-
-        st.markdown("")
-        k1, k2, k3, k4 = st.columns(4)
-        for col, emoji, label in [
-            (k1, "➕", "Added"),
-            (k2, "➖", "Deleted"),
-            (k3, "✏️", "Modified"),
-            (k4, "🔢", "Total"),
-        ]:
-            col.markdown(f"""
-            <div style="background:#f8f9fa; border-radius:12px; padding:1.2rem 1rem;
-                        text-align:center; border:1px solid #dee2e6;">
-                <div style="font-size:2rem;">{emoji}</div>
-                <div style="font-size:2rem; font-weight:700; color:#ced4da;">—</div>
-                <div style="font-size:0.85rem; color:#adb5bd; margin-top:4px;">{label}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
+    # ── Footer ───────────────────────────────────────────────
     st.markdown("---")
     st.markdown("""
     <div style="text-align:center; color:#6c757d; font-size:0.8rem; padding:0.5rem 0;">
         🏭 Smart PDF Comparator &nbsp;|&nbsp;
-        Prepared by <strong>Khadija Hodar</strong> &nbsp;|&nbsp;
         Powered by pdfplumber · pandas · Streamlit
     </div>
     """, unsafe_allow_html=True)
-
 # =============================
 # ⚡ QUICK COMPARE
 # =============================
@@ -1372,6 +1378,216 @@ elif menu == "🔬 Deep Comparison":
                 )
                 st.markdown("---")
                 st.info("📁 Go to **Exports & Reports** in the menu to download the colored Excel file.")
+
+# =============================
+# 📊 DASHBOARD
+# =============================
+elif menu == "📊 Dashboard":
+
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        padding: 1.8rem 2rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+    ">
+        <h1 style="color:#e94560; margin:0; font-size:2rem;">📊 Comparison Dashboard</h1>
+        <p style="color:#a8b2d8; margin:0.3rem 0 0; font-size:0.95rem;">
+            Visual summary of the last deep comparison
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    deep_result  = st.session_state.get("deep_result", None)
+    deep_section = st.session_state.get("deep_section", "—")
+
+    if deep_result is None:
+        st.markdown("""
+        <div style="
+            background:#f8f9fa; border-radius:16px; padding:3rem;
+            text-align:center; border:2px dashed #dee2e6;
+        ">
+            <div style="font-size:3rem;">🔬</div>
+            <h3 style="color:#6c757d;">No comparison available yet</h3>
+            <p style="color:#adb5bd;">
+                Go to <b>Deep Comparison</b>, run an analysis,
+                then come back here to see the dashboard.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        n_added    = len(deep_result["added"])
+        n_deleted  = len(deep_result["deleted"])
+        n_modified = len(deep_result["modified"])
+        n_total    = n_added + n_deleted + n_modified
+
+        # ── Section badge ────────────────────────────────────
+        st.markdown(f"""
+        <div style="
+            background:#eaf2fb; border-radius:10px; padding:0.6rem 1rem;
+            border-left:4px solid #1a5276; margin-bottom:1rem;
+            display:inline-block;
+        ">
+            📋 Section analysed: <b>{deep_section}</b>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── KPI Cards ────────────────────────────────────────
+        k1, k2, k3, k4 = st.columns(4)
+
+        def kpi_card(col, emoji, label, label_fr, value, bg, fg):
+            col.markdown(f"""
+            <div style="
+                background:{bg}; border-radius:14px; padding:1.4rem 1rem;
+                text-align:center; border:1px solid {fg}33;
+                box-shadow:0 2px 8px rgba(0,0,0,0.06);
+            ">
+                <div style="font-size:2rem;">{emoji}</div>
+                <div style="font-size:2.2rem; font-weight:800; color:{fg}; margin:0.3rem 0;">{value}</div>
+                <div style="font-size:0.85rem; font-weight:600; color:{fg};">{label}</div>
+                <div style="font-size:0.72rem; color:#888; font-style:italic;">{label_fr}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        kpi_card(k1, "➕", "Added",    "Ajoutés",    n_added,    "#eafaf1", "#1e8449")
+        kpi_card(k2, "➖", "Deleted",  "Supprimés",  n_deleted,  "#fdf2f2", "#c0392b")
+        kpi_card(k3, "✏️", "Modified", "Modifiés",   n_modified, "#fef9e7", "#d68910")
+        kpi_card(k4, "🔢", "Total",    "Total",      n_total,    "#eaf2fb", "#1a5276")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── Charts ───────────────────────────────────────────
+        modified = deep_result["modified"]
+        rows_mod = []
+        for equip, changes in modified.items():
+            for param, vals in changes.items():
+                rows_mod.append({
+                    "Equipment": equip.replace("\n", " ").strip(),
+                    "Parameter": param.replace("\n", " ").strip(),
+                    "Old": vals["old"],
+                    "New": vals["new"],
+                })
+        df_dash = pd.DataFrame(rows_mod) if rows_mod else pd.DataFrame()
+
+        if not df_dash.empty:
+            import json
+            chart_col1, chart_col2 = st.columns(2)
+
+            with chart_col1:
+                st.markdown("""
+                <div style="background:#f8f9fa; border-radius:12px; padding:1rem; text-align:center;">
+                <h4 style="color:#0f3460; margin-bottom:0.5rem;">🍩 Change Breakdown</h4>
+                """, unsafe_allow_html=True)
+                donut_labels = ["Added", "Deleted", "Modified"]
+                donut_values = [n_added, n_deleted, n_modified]
+                donut_colors = ["#1e8449", "#c0392b", "#d68910"]
+                donut_html = f"""
+                <canvas id="donut" width="280" height="260"></canvas>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+                <script>
+                new Chart(document.getElementById('donut'), {{
+                    type: 'doughnut',
+                    data: {{
+                        labels: {json.dumps(donut_labels)},
+                        datasets: [{{
+                            data: {json.dumps(donut_values)},
+                            backgroundColor: {json.dumps(donut_colors)},
+                            borderWidth: 3,
+                            borderColor: '#fff'
+                        }}]
+                    }},
+                    options: {{
+                        cutout: '65%',
+                        plugins: {{
+                            legend: {{ position: 'bottom', labels: {{ font: {{ size: 12 }} }} }},
+                        }}
+                    }}
+                }});
+                </script>
+                """
+                st.components.v1.html(donut_html, height=300)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            with chart_col2:
+                st.markdown("""
+                <div style="background:#f8f9fa; border-radius:12px; padding:1rem; text-align:center;">
+                <h4 style="color:#0f3460; margin-bottom:0.5rem;">📊 Top Modified Parameters</h4>
+                """, unsafe_allow_html=True)
+                param_counts = df_dash["Parameter"].value_counts().head(8)
+                bar_labels   = param_counts.index.tolist()
+                bar_values   = param_counts.values.tolist()
+                bar_html = f"""
+                <canvas id="bar" width="380" height="260"></canvas>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+                <script>
+                new Chart(document.getElementById('bar'), {{
+                    type: 'bar',
+                    data: {{
+                        labels: {json.dumps(bar_labels)},
+                        datasets: [{{
+                            label: 'Changes',
+                            data: {json.dumps(bar_values)},
+                            backgroundColor: '#0f3460cc',
+                            borderColor: '#e94560',
+                            borderWidth: 1,
+                            borderRadius: 6
+                        }}]
+                    }},
+                    options: {{
+                        indexAxis: 'y',
+                        plugins: {{ legend: {{ display: false }} }},
+                        scales: {{
+                            x: {{ beginAtZero: true, ticks: {{ stepSize: 1 }} }},
+                            y: {{ ticks: {{ font: {{ size: 10 }} }} }}
+                        }}
+                    }}
+                }});
+                </script>
+                """
+                st.components.v1.html(bar_html, height=300)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            # ── Top 5 most impacted equipment ────────────────
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("""
+            <h4 style="color:#0f3460; margin-bottom:0.8rem;">
+                🏆 Top 5 Most Impacted Equipment
+            </h4>
+            """, unsafe_allow_html=True)
+
+            top5 = (df_dash.groupby("Equipment")
+                           .size()
+                           .sort_values(ascending=False)
+                           .head(5)
+                           .reset_index())
+            top5.columns = ["Equipment", "# Parameters Changed"]
+            top5.index += 1
+
+            medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+            top5.insert(0, "Rank", medal[:len(top5)])
+
+            colors_top = ["#fff9c4","#fff3cd","#fdebd0","#fdf2f8","#f0f4ff"]
+            def highlight_top(row):
+                idx = row.name - 1
+                c = colors_top[idx] if idx < len(colors_top) else ""
+                return [f"background-color:{c}"]*len(row)
+
+            st.dataframe(
+                top5.style.apply(highlight_top, axis=1),
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.info("No modified parameters to display in charts.")
+
+        # ── Footer ───────────────────────────────────────────
+        st.markdown("---")
+        st.markdown("""
+        <div style="text-align:center; color:#6c757d; font-size:0.8rem;">
+            💡 Go to <b>Exports & Reports</b> to download Excel and PDF report
+        </div>
+        """, unsafe_allow_html=True)
+
 
 # =============================
 # 📁 EXPORTS & REPORTS
