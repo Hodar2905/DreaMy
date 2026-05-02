@@ -958,7 +958,10 @@ if menu == "🏠 Home":
         <p style="color:#a8b2d8; margin:0.6rem 0 0; font-size:1.1rem;">
             Industrial Electrical Load List — Comparison & Analysis Platform
         </p>
-        <p style="color:#6c757d; margin:0.8rem 0 0; font-size:0.85rem;">
+        <p style="color:#a8b2d8; margin:0.6rem 0 0; font-size:0.85rem;">
+            Prepared by <strong style="color:#e94560;">Khadija Hodar</strong>
+        </p>
+        <p style="color:#6c757d; margin:0.4rem 0 0; font-size:0.8rem;">
             Powered by pdfplumber · pandas · Streamlit
         </p>
     </div>
