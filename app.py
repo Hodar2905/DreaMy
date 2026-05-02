@@ -1036,34 +1036,16 @@ elif menu == "🔬 Deep Comparison":
 
         if common:
 
-            # ── FORM : all choices in one go, no reload ──────
-            with st.form("deep_comparison_form"):
-                st.markdown("#### ⚙️ Comparison Settings")
-                st.markdown("*Make all your selections below then click **Run Deep Comparison***")
+            # ── STEP 1 : Load section data first ─────────────
+            saved_section = st.session_state.get("saved_section")
+            section_index = common.index(saved_section) if saved_section in common else 0
 
-                saved_section = st.session_state.get("saved_section")
-                section_index = common.index(saved_section) if saved_section in common else 0
-                section = st.selectbox("🎯 Section", common, index=section_index)
+            # Section selectbox OUTSIDE form so it triggers load
+            section = st.selectbox("🎯 Section", common, index=section_index)
 
-                # Get columns from last known section or current
-                last_cols = st.session_state.get("last_all_cols", [])
-                saved_key = st.session_state.get("saved_key_col")
-                key_index = last_cols.index(saved_key) if saved_key in last_cols and last_cols else 0
-                key_col = st.selectbox("🔑 Key column", last_cols if last_cols else ["— run first to load —"], index=key_index)
-
-                available_cols = [c for c in last_cols if c != key_col]
-                saved_cols = st.session_state.get("saved_selected_cols", [])
-                default_cols = [c for c in saved_cols if c in available_cols]
-                selected_cols = st.multiselect(
-                    "📌 Columns to compare (screen results)",
-                    available_cols,
-                    default=default_cols
-                )
-
-                submitted = st.form_submit_button("🚀 Run Deep Comparison", use_container_width=True)
-
-            if submitted:
-                with st.spinner("⏳ Extracting and comparing data..."):
+            # Load tables when section changes
+            if st.session_state.get("saved_section") != section or "fnew_current" not in st.session_state:
+                with st.spinner(f"⏳ Loading section '{section}'..."):
                     with pdfplumber.open(p1) as pdf:
                         n1 = len(pdf.pages)
                     with pdfplumber.open(p2) as pdf:
@@ -1081,22 +1063,51 @@ elif menu == "🔬 Deep Comparison":
                     fnew = merge_tables_clean(tnew, p1, s1)
                     fold = merge_tables_clean(told, p2, s2)
 
-                    if not fnew.empty and not fold.empty:
-                        all_cols = sorted(list(set(fnew.columns) & set(fold.columns)))
-                        st.session_state["last_all_cols"] = all_cols
-                        st.session_state["saved_section"]  = section
-                        st.session_state["saved_key_col"]  = key_col
+                    st.session_state["fnew_current"] = fnew.copy()
+                    st.session_state["fold_current"] = fold.copy()
+                    st.session_state["saved_section"] = section
+                    all_cols = sorted(list(set(fnew.columns) & set(fold.columns)))
+                    st.session_state["last_all_cols"] = all_cols
+
+            fnew = st.session_state.get("fnew_current", pd.DataFrame())
+            fold = st.session_state.get("fold_current", pd.DataFrame())
+            all_cols = st.session_state.get("last_all_cols", [])
+
+            if not fnew.empty and not fold.empty and all_cols:
+
+                # ── STEP 2 : Form for key col + columns ──────
+                with st.form("deep_comparison_form"):
+                    st.markdown("#### ⚙️ Comparison Settings")
+                    st.markdown("*Select key column and columns to compare, then click **Run***")
+
+                    saved_key = st.session_state.get("saved_key_col")
+                    key_index = all_cols.index(saved_key) if saved_key in all_cols else 0
+                    key_col = st.selectbox("🔑 Key column", all_cols, index=key_index)
+
+                    available_cols = [c for c in all_cols if c != key_col]
+                    saved_cols = st.session_state.get("saved_selected_cols", [])
+                    default_cols = [c for c in saved_cols if c in available_cols]
+                    selected_cols = st.multiselect(
+                        "📌 Columns to compare (screen results)",
+                        available_cols,
+                        default=default_cols
+                    )
+
+                    submitted = st.form_submit_button("🚀 Run Deep Comparison", use_container_width=True)
+
+                if submitted:
+                    with st.spinner("⏳ Comparing data..."):
+                        st.session_state["saved_key_col"] = key_col
                         st.session_state["saved_selected_cols"] = selected_cols
                         st.session_state["deep_result"]  = deep_compare(fnew, fold, key_col, selected_cols)
                         st.session_state["deep_section"] = section
                         st.session_state["fnew_snapshot"] = fnew.copy()
                         st.session_state["fold_snapshot"] = fold.copy()
                         st.session_state["excel_cols_snapshot"] = []
+                        st.session_state["excel_ready"] = False
                         if "param_filter" in st.session_state:
                             del st.session_state["param_filter"]
-                        st.success("✅ Comparison done!")
-                    else:
-                        st.warning("⚠️ No data found for this section.")
+                    st.success("✅ Comparison done!")
 
             if st.session_state.get("deep_result") is not None:
                 display_comparison_results(
@@ -1208,4 +1219,3 @@ elif menu == "📁 Exports & Reports":
         # ── PDF Report (coming soon) ──────────────────────────
         st.subheader("📝 PDF Report")
         st.info("🚧 PDF Report generation coming soon in the next update!")
-
