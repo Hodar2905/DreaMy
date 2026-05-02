@@ -1076,30 +1076,34 @@ elif menu == "🔬 Deep Comparison":
             if not fnew.empty and not fold.empty and all_cols:
 
                 # ── STEP 2 : Form for key col + columns ──────
-                with st.form("deep_comparison_form"):
-                    st.markdown("#### ⚙️ Comparison Settings")
-                    st.markdown("*Select key column and columns to compare, then click **Run***")
+                st.markdown("#### ⚙️ Comparison Settings")
 
-                    saved_key = st.session_state.get("saved_key_col")
-                    key_index = all_cols.index(saved_key) if saved_key in all_cols else 0
-                    key_col = st.selectbox("🔑 Key column", all_cols, index=key_index)
+                # Key column OUTSIDE form to update available_cols instantly
+                saved_key = st.session_state.get("saved_key_col")
+                key_index = all_cols.index(saved_key) if saved_key in all_cols else 0
+                key_col = st.selectbox("🔑 Key column", all_cols, index=key_index)
+                st.session_state["saved_key_col"] = key_col
 
-                    available_cols = [c for c in all_cols if c != key_col]
-                    saved_cols = st.session_state.get("saved_selected_cols", [])
-                    default_cols = [c for c in saved_cols if c in available_cols]
-                    selected_cols = st.multiselect(
-                        "📌 Columns to compare (screen results)",
-                        available_cols,
-                        default=default_cols
-                    )
+                # Columns to compare OUTSIDE form to avoid value lag
+                available_cols = [c for c in all_cols if c != key_col]
+                saved_cols = st.session_state.get("saved_selected_cols", [])
+                default_cols = [c for c in saved_cols if c in available_cols]
+                selected_cols = st.multiselect(
+                    "📌 Columns to compare (screen results)",
+                    available_cols,
+                    default=default_cols,
+                    key="multiselect_cols"
+                )
+                st.session_state["saved_selected_cols"] = selected_cols
 
-                    submitted = st.form_submit_button("🚀 Run Deep Comparison", use_container_width=True)
-
-                if submitted:
+                st.markdown("*When ready, click **Run Deep Comparison***")
+                if st.button("🚀 Run Deep Comparison", use_container_width=True):
+                    # Read directly from session_state to avoid lag
+                    cols_to_compare = st.session_state.get("multiselect_cols", selected_cols)
+                    key_to_use = st.session_state.get("saved_key_col", key_col)
                     with st.spinner("⏳ Comparing data..."):
-                        st.session_state["saved_key_col"] = key_col
-                        st.session_state["saved_selected_cols"] = selected_cols
-                        st.session_state["deep_result"]  = deep_compare(fnew, fold, key_col, selected_cols)
+                        result = deep_compare(fnew, fold, key_to_use, cols_to_compare)
+                        st.session_state["deep_result"]  = result
                         st.session_state["deep_section"] = section
                         st.session_state["fnew_snapshot"] = fnew.copy()
                         st.session_state["fold_snapshot"] = fold.copy()
